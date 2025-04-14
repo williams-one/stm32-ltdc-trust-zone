@@ -1,0 +1,45 @@
+{
+    "configurations": [
+        {
+            "name": "APP_S",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/scripts",
+                "${workspaceFolder}/Secure/Core/Inc",
+                "${workspaceFolder}/Drivers/STM32U5xx_HAL_Driver/Inc",
+                "${workspaceFolder}/Drivers/STM32U5xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32U5xx/Include",
+                "${workspaceFolder}/Drivers/CMSIS/Include",
+                "${workspaceFolder}/Secure/mx66uw1g45g"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32U5G9xx",
+                "__ARM_FEATURE_CMSE=3"
+            ],
+            "compilerPath": "C:/ST/STM32CubeCLT_1.18.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++14"
+        },
+        {
+            "name": "App_NS",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/NonSecure/Core/Inc",
+                "${workspaceFolder}/Drivers/STM32U5xx_HAL_Driver/Inc",
+                "${workspaceFolder}/Drivers/STM32U5xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32U5xx/Include",
+                "${workspaceFolder}/Drivers/CMSIS/Include",
+                "${workspaceFolder}/Secure/mx66uw1g45g"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32U5G9xx"
+            ],
+            "compilerPath": "C:/ST/STM32CubeCLT_1.18.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++14"
+        }
+    ],
+    "version": 4
+}
