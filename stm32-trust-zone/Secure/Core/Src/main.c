@@ -634,7 +634,7 @@ static void MX_GTZC_S_Init(void)
   /* USER CODE BEGIN GTZC_S_Init 2 */
   // Override the default attributes for the LTDC peripheral otherwise it is not
   // possible to access the framebuffer inside the bootloader
-  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_LTDC, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_PRIV) != HAL_OK)
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_LTDC, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
   {
     Error_Handler();
   }
