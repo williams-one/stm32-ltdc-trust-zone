@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,7 +35,7 @@
 /* Non-secure Vector table to jump to (internal Flash Bank2 here)             */
 /* Caution: address must correspond to non-secure internal Flash where is     */
 /*          mapped in the non-secure vector table                             */
-#define VTOR_TABLE_NS_START_ADDR  0x08200000UL
+#define VTOR_TABLE_NS_START_ADDR  0x08200400UL
 
 /* USER CODE END PD */
 
@@ -45,9 +46,15 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+LTDC_HandleTypeDef hltdc;
+
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+#define FRAMEBUFFER_SIZE (400 * 240 * 2)
+static uint8_t dummy_framebuffer[2][FRAMEBUFFER_SIZE] __attribute__((aligned(4))) __attribute__((section("FrameBuffer")));
+
+LTDC_LayerCfgTypeDef layerCfg;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,6 +65,7 @@ static void MX_GPIO_Init(void);
 static void MX_GTZC_S_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_ICACHE_Init(void);
+static void MX_LTDC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -112,10 +120,50 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_ICACHE_Init();
+  MX_LTDC_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_RESET);
   HAL_Delay(500);
   HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_SET);
+
+  layerCfg.WindowX0 = 200;
+  layerCfg.WindowX1 = 600;
+  layerCfg.WindowY0 = 120;
+  layerCfg.WindowY1 = 360;
+  layerCfg.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
+  layerCfg.Alpha = 255;
+  layerCfg.Alpha0 = 0;
+  layerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
+  layerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
+  layerCfg.FBStartAdress = 0;
+  layerCfg.ImageWidth = 400;
+  layerCfg.ImageHeight = 240;
+  layerCfg.Backcolor.Blue = 0x6D;
+  layerCfg.Backcolor.Green = 0xB0;
+  layerCfg.Backcolor.Red = 0x77;
+
+  memset(dummy_framebuffer, 0x00, 2 * FRAMEBUFFER_SIZE);
+  for (uint32_t i = 0; i < 2; ++i)
+  {
+    for (int j = i + 1; j < FRAMEBUFFER_SIZE / 2; j += 2)
+      dummy_framebuffer[i][j] = 0x18;
+    for (int j = i + FRAMEBUFFER_SIZE / 2 + 1; j < FRAMEBUFFER_SIZE; j += 2)
+      dummy_framebuffer[i][j] = 0x24;
+  }
+
+  for (uint8_t i = 0; i < 10; ++i)
+  {
+    static uint8_t index = 0;
+    layerCfg.Backcolor.Blue ^= 0xF5;
+    layerCfg.Backcolor.Green ^= 0xFE;
+    layerCfg.Backcolor.Red ^= 0xB1;
+    HAL_LTDC_ConfigLayer_NoReload(&hltdc, &layerCfg, 0);
+    HAL_LTDC_SetAddress_NoReload(&hltdc, (uint32_t)(uintptr_t)dummy_framebuffer[index], 0);
+    HAL_LTDC_Reload(&hltdc, LTDC_RELOAD_VERTICAL_BLANKING);
+    index ^= 0x01;
+    HAL_Delay(1000);
+    HAL_GPIO_TogglePin(RED_LED_GPIO_Port, RED_LED_Pin);
+  }
   /* USER CODE END 2 */
 
   /*************** Setup and jump to non-secure *******************************/
@@ -253,6 +301,14 @@ static void MX_GTZC_S_Init(void)
     Error_Handler();
   }
   if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_USART1, GTZC_TZSC_PERIPH_SEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_LTDC, GTZC_TZSC_PERIPH_SEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_DSI, GTZC_TZSC_PERIPH_SEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
   {
     Error_Handler();
   }
@@ -576,7 +632,12 @@ static void MX_GTZC_S_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN GTZC_S_Init 2 */
-
+  // Override the default attributes for the LTDC peripheral otherwise it is not
+  // possible to access the framebuffer inside the bootloader
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_LTDC, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_PRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END GTZC_S_Init 2 */
 
 }
@@ -610,6 +671,68 @@ static void MX_ICACHE_Init(void)
   /* USER CODE BEGIN ICACHE_Init 2 */
 
   /* USER CODE END ICACHE_Init 2 */
+
+}
+
+/**
+  * @brief LTDC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_LTDC_Init(void)
+{
+
+  /* USER CODE BEGIN LTDC_Init 0 */
+
+  /* USER CODE END LTDC_Init 0 */
+
+  LTDC_LayerCfgTypeDef pLayerCfg = {0};
+
+  /* USER CODE BEGIN LTDC_Init 1 */
+
+  /* USER CODE END LTDC_Init 1 */
+  hltdc.Instance = LTDC;
+  hltdc.Init.HSPolarity = LTDC_HSPOLARITY_AL;
+  hltdc.Init.VSPolarity = LTDC_VSPOLARITY_AL;
+  hltdc.Init.DEPolarity = LTDC_DEPOLARITY_AL;
+  hltdc.Init.PCPolarity = LTDC_PCPOLARITY_IPC;
+  hltdc.Init.HorizontalSync = 4;
+  hltdc.Init.VerticalSync = 4;
+  hltdc.Init.AccumulatedHBP = 12;
+  hltdc.Init.AccumulatedVBP = 12;
+  hltdc.Init.AccumulatedActiveW = 812;
+  hltdc.Init.AccumulatedActiveH = 492;
+  hltdc.Init.TotalWidth = 820;
+  hltdc.Init.TotalHeigh = 500;
+  hltdc.Init.Backcolor.Blue = 0;
+  hltdc.Init.Backcolor.Green = 0;
+  hltdc.Init.Backcolor.Red = 0;
+  if (HAL_LTDC_Init(&hltdc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  pLayerCfg.WindowX0 = 0;
+  pLayerCfg.WindowX1 = 800;
+  pLayerCfg.WindowY0 = 0;
+  pLayerCfg.WindowY1 = 480;
+  pLayerCfg.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
+  pLayerCfg.Alpha = 255;
+  pLayerCfg.Alpha0 = 0;
+  pLayerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
+  pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
+  pLayerCfg.FBStartAdress = 0;
+  pLayerCfg.ImageWidth = 800;
+  pLayerCfg.ImageHeight = 480;
+  pLayerCfg.Backcolor.Blue = 0;
+  pLayerCfg.Backcolor.Green = 0;
+  pLayerCfg.Backcolor.Red = 0;
+  if (HAL_LTDC_ConfigLayer(&hltdc, &pLayerCfg, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN LTDC_Init 2 */
+
+  /* USER CODE END LTDC_Init 2 */
 
 }
 
@@ -684,24 +807,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOE, LCD_ON_Pin|BL_CTRL_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_SET);
 
-  /*IO attributes management functions */
-  HAL_GPIO_ConfigPinAttributes(GPIOE, LCD_ON_Pin|BL_CTRL_Pin|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
-                          |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0, GPIO_PIN_NSEC);
-
-  /*IO attributes management functions */
-  HAL_GPIO_ConfigPinAttributes(GPIOB, GPIO_PIN_2|GPIO_PIN_9, GPIO_PIN_NSEC);
-
-  /*IO attributes management functions */
-  HAL_GPIO_ConfigPinAttributes(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15
-                          |GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GREEN_LED_Pin
-                          |GPIO_PIN_6, GPIO_PIN_NSEC);
-
-  /*IO attributes management functions */
-  HAL_GPIO_ConfigPinAttributes(GPIOC, GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_NSEC);
+  /*Configure GPIO pins : LCD_ON_Pin BL_CTRL_Pin */
+  GPIO_InitStruct.Pin = LCD_ON_Pin|BL_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PF0 PF1 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
@@ -742,6 +858,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(RED_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*IO attributes management functions */
+  HAL_GPIO_ConfigPinAttributes(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_NSEC);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
