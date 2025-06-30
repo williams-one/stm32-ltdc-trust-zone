@@ -62,7 +62,51 @@ static void MX_LTDC_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+typedef struct {
+    uint32_t magic;
+} FlashingMarker;
 
+// This is used to simulate that the flashing marker has been added by the bootloader
+// when programming via JTAG
+__attribute__((section(".FlashingMarkerSection")))
+const FlashingMarker FLASHING_MARKER = { .magic = 0x73777737 };
+
+typedef struct PartitionData {
+    uint8_t hash[32];
+    uint8_t signature[72];
+    uint8_t signature_size;
+    uint32_t length;
+} PartitionData;
+
+typedef struct {
+    uint8_t hash[32];
+    PartitionData partitions[2];
+    uint8_t key_index;
+    uint32_t magic;
+} PartitionHeader;
+
+// This is just a placeholder for the partition header, that is filled
+// with the actual data by the image_generation script
+__attribute__((section(".PartitionHeaderSection")))
+const PartitionHeader PARTITION_HEADER = {
+    .hash = {0},
+    .partitions = {
+        {
+            .hash = {0},
+            .signature = {0},
+            .signature_size = 0,
+            .length = 0,
+        },
+        {
+            .hash = {0},
+            .signature = {0},
+            .signature_size = 0,
+            .length = 0,
+        },
+    },
+    .key_index = 0,
+    .magic = 0,
+};
 /* USER CODE END 0 */
 
 /**

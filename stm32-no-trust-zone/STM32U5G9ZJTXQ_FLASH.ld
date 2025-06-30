@@ -41,11 +41,17 @@ _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
 _Min_Heap_Size = 0x200; /* required amount of heap */
 _Min_Stack_Size = 0x400; /* required amount of stack */
 
+_Bootloader_Size = 2048K;
+_Flashing_Marker_Size = 16;
+_Image_Header_Size = 1024 - _Flashing_Marker_Size;
+
 /* Memories definition */
 MEMORY
 {
-  RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 3008K
-  FLASH    (rx)    : ORIGIN = 0x08000000,   LENGTH = 4096K
+  RAM (xrw)            : ORIGIN = 0x20000000,   LENGTH = 3008K
+  FLASHING_MARKER(rx)  : ORIGIN = 0x08000000 + _Bootloader_Size, LENGTH = _Flashing_Marker_Size
+  PARTITION_HEADER(rx) : ORIGIN = 0x08000000 + _Bootloader_Size + _Flashing_Marker_Size, LENGTH = _Image_Header_Size
+  FLASH(rx)            : ORIGIN = 0x08000000 + _Bootloader_Size + _Flashing_Marker_Size + _Image_Header_Size, LENGTH = 4096K - _Bootloader_Size - _Flashing_Marker_Size - _Image_Header_Size
 }
 
 /* Sections */
@@ -184,4 +190,18 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  FlashingMarkerSection :
+  {
+    *(.FlashingMarkerSection .FlashingMarkerSection.*)
+    KEEP(*(.FlashingMarkerSection))
+    . = ALIGN(0x4);
+  } >FLASHING_MARKER
+
+  PartitionHeaderSection :
+  {
+    *(.PartitionHeaderSection .PartitionHeaderSection.*)
+    KEEP(*(.PartitionHeaderSection))
+    . = ALIGN(0x4);
+  } >PARTITION_HEADER
 }
