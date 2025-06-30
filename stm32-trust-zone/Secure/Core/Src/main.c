@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+// #include "stm32u5xx_ll_rcc.h"
+// #include "stm32u5xx_ll_gpio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,6 +82,41 @@ int __io_putchar(int ch)
 
   return ch;
 }
+
+static HAL_StatusTypeDef enable_hsi(void) {
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+
+    HAL_RCC_GetOscConfig(&RCC_OscInitStruct);
+
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+
+    return HAL_RCC_OscConfig(&RCC_OscInitStruct);
+}
+
+static HAL_StatusTypeDef switch_system_clock_to_hsi(void) {
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    uint32_t flashLatency = 0;
+
+    HAL_RCC_GetClockConfig(&RCC_ClkInitStruct, &flashLatency);
+
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+
+    return HAL_RCC_ClockConfig(&RCC_ClkInitStruct, flashLatency);
+}
+
+static HAL_StatusTypeDef turn_off_clocks_except_hsi(void) {
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_OscInitStruct.OscillatorType =
+        RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE | RCC_OSCILLATORTYPE_MSI | RCC_OSCILLATORTYPE_HSI48;
+    RCC_OscInitStruct.HSEState = RCC_HSE_OFF;
+    RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
+    RCC_OscInitStruct.MSIState = RCC_MSI_OFF;
+    RCC_OscInitStruct.HSI48State = RCC_HSI48_OFF;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_OFF;
+
+    return HAL_RCC_OscConfig(&RCC_OscInitStruct);
+}
 /* USER CODE END 0 */
 
 /**
@@ -92,7 +129,12 @@ int main(void)
 /* in SystemInit() based on partition_stm32u5g9xx.h file's definitions. */
 
   /* USER CODE BEGIN 1 */
-
+  // Disable illegal access to SRAM to allow access to the entire RAM
+  GTZC_MPCBB1->CR |= GTZC_MPCBB_CR_SRWILADIS_Msk;
+  GTZC_MPCBB2->CR |= GTZC_MPCBB_CR_SRWILADIS_Msk;
+  GTZC_MPCBB3->CR |= GTZC_MPCBB_CR_SRWILADIS_Msk;
+  GTZC_MPCBB5->CR |= GTZC_MPCBB_CR_SRWILADIS_Msk;
+  GTZC_MPCBB6->CR |= GTZC_MPCBB_CR_SRWILADIS_Msk;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -123,8 +165,10 @@ int main(void)
   MX_LTDC_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
   HAL_Delay(500);
   HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_RESET);
 
   layerCfg.WindowX0 = 200;
   layerCfg.WindowX1 = 600;
@@ -151,7 +195,7 @@ int main(void)
       dummy_framebuffer[i][j] = 0x24;
   }
 
-  for (uint8_t i = 0; i < 10; ++i)
+  for (uint8_t i = 0; i < 2; ++i)
   {
     static uint8_t index = 0;
     layerCfg.Backcolor.Blue ^= 0xF5;
@@ -163,6 +207,135 @@ int main(void)
     index ^= 0x01;
     HAL_Delay(1000);
     HAL_GPIO_TogglePin(RED_LED_GPIO_Port, RED_LED_Pin);
+    HAL_GPIO_TogglePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin);
+  }
+
+  // Deinit all peripherals
+  if (HAL_LTDC_DeInit(&hltdc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UART_DeInit(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_ICACHE_DeInit() != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  HAL_SuspendTick();
+
+  // Turn off all clocks except HSI
+  if (enable_hsi() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (switch_system_clock_to_hsi() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (turn_off_clocks_except_hsi() != HAL_OK) {
+    Error_Handler();
+  }
+
+// If uncommented, the NS application will stop working
+//   if (HAL_DeInit() != HAL_OK)
+//   {
+//     Error_Handler();
+//   }
+
+  // Set RCC as non-secure
+  RCC->SECCFGR = 0;
+  RCC->PRIVCFGR = 0;
+  PWR->SECCFGR = 0;
+  PWR->PRIVCFGR = 0;
+  SYSCFG->SECCFGR = 0;
+
+  // Set all GPIO as non-secure
+  GPIOA->SECCFGR = 0;
+  GPIOB->SECCFGR = 0;
+  GPIOC->SECCFGR = 0;
+  GPIOD->SECCFGR = 0;
+  GPIOE->SECCFGR = 0;
+  GPIOF->SECCFGR = 0;
+  GPIOG->SECCFGR = 0;
+  GPIOH->SECCFGR = 0;
+  GPIOI->SECCFGR = 0;
+  GPIOJ->SECCFGR = 0;
+
+  // Allow access to the entire SRAM from NS application
+  MPCBB_ConfigTypeDef MPCBB_Area_Desc = {0};
+  MPCBB_Area_Desc.SecureRWIllegalMode = GTZC_MPCBB_SRWILADIS_DISABLE;
+  if (HAL_GTZC_MPCBB_ConfigMem(SRAM1_BASE, &MPCBB_Area_Desc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_MPCBB_ConfigMem(SRAM2_BASE, &MPCBB_Area_Desc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_MPCBB_ConfigMem(SRAM3_BASE, &MPCBB_Area_Desc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_MPCBB_ConfigMem(SRAM5_BASE, &MPCBB_Area_Desc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_MPCBB_ConfigMem(SRAM6_BASE, &MPCBB_Area_Desc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  // Release all peripherals to their default security attributes
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_TIM3, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_I2C2, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_USART1, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_LTDC, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_DSI, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_DMA2D, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_OTG, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_AES, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_HASH, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_RNG, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_SAES, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_HSPI1_REG, GTZC_TZSC_PERIPH_NSEC|GTZC_TZSC_PERIPH_NPRIV) != HAL_OK)
+  {
+    Error_Handler();
   }
   /* USER CODE END 2 */
 
@@ -284,7 +457,6 @@ static void MX_GTZC_S_Init(void)
 {
 
   /* USER CODE BEGIN GTZC_S_Init 0 */
-
   /* USER CODE END GTZC_S_Init 0 */
 
   MPCBB_ConfigTypeDef MPCBB_Area_Desc = {0};
@@ -810,7 +982,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, LCD_ON_Pin|BL_CTRL_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(RED_LED_GPIO_Port, RED_LED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOD, RED_LED_Pin|GREEN_LED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : LCD_ON_Pin BL_CTRL_Pin */
   GPIO_InitStruct.Pin = LCD_ON_Pin|BL_CTRL_Pin;
@@ -852,15 +1024,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RED_LED_Pin */
-  GPIO_InitStruct.Pin = RED_LED_Pin;
+  /*Configure GPIO pins : RED_LED_Pin GREEN_LED_Pin */
+  GPIO_InitStruct.Pin = RED_LED_Pin|GREEN_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(RED_LED_GPIO_Port, &GPIO_InitStruct);
-
-  /*IO attributes management functions */
-  HAL_GPIO_ConfigPinAttributes(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_NSEC);
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
