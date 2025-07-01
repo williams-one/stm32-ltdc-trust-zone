@@ -131,7 +131,7 @@
 /*
 //     <o>Start Address <0-0xFFFFFFE0>
 */
-#define SAU_INIT_START2     0x200D0000      /* start address of SAU region 2 */
+#define SAU_INIT_START2     0x20000000      /* start address of SAU region 2 */
 /*
 //     <o>End Address <0x1F-0xFFFFFFFF>
 */
@@ -556,6 +556,30 @@
 */
 
 /* USER CODE BEGIN 2 */
+
+// Make all interrupts non secure
+#undef NVIC_INIT_ITNS0
+#undef NVIC_INIT_ITNS0_VAL
+#undef NVIC_INIT_ITNS1
+#undef NVIC_INIT_ITNS1_VAL
+#undef NVIC_INIT_ITNS2
+#undef NVIC_INIT_ITNS2_VAL
+#undef NVIC_INIT_ITNS3
+#undef NVIC_INIT_ITNS3_VAL
+
+#define NVIC_INIT_ITNS0    1
+#define NVIC_INIT_ITNS0_VAL      0xE7FFFA44
+
+#define NVIC_INIT_ITNS1    1
+#define NVIC_INIT_ITNS1_VAL      0xFFFFFFFF
+
+#define NVIC_INIT_ITNS2    1
+#define NVIC_INIT_ITNS2_VAL      0xDFFFFDFF
+
+#define NVIC_INIT_ITNS3    1
+#define NVIC_INIT_ITNS3_VAL      0xFFFFCFFC
+
+#define NVIC_INIT_ITNS4    1
 
 #define NVIC_INIT_ITNS4    1
 #define NVIC_INIT_ITNS4_VAL      0x00001FFF

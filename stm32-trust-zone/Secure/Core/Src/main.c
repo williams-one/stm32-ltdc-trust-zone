@@ -240,10 +240,10 @@ int main(void)
   }
 
 // If uncommented, the NS application will stop working
-//   if (HAL_DeInit() != HAL_OK)
-//   {
-//     Error_Handler();
-//   }
+  if (HAL_DeInit() != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   // Set RCC as non-secure
   RCC->SECCFGR = 0;
